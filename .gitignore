@@ -1,0 +1,4 @@
+.venv/
+.env
+topics.json
+banned.csv
