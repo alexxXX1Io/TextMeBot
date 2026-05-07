@@ -4,21 +4,22 @@ import re
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
-    ContextTypes, filters
+    ContextTypes, filters, ChatMemberHandler
 )
 from dotenv import load_dotenv
  
 load_dotenv()
- 
+
 BOT_TOK = os.getenv("BOT_TOK")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
-GROUP_ID = int(os.getenv("GROUP_ID"))  # your forum supergroup id
+GROUP_ID = int(os.getenv("GROUP_ID"))
 BAN_FILE = "banned.txt"
 TOPICS_FILE = "topics.json"
  
 DEBUG = False  # set False in production
  
- 
+white_list = {"messages": GROUP_ID}
+
 # ── persistence ────────────────────────────────────────────────────────────────
  
 def load_banned():
@@ -49,6 +50,13 @@ user_topics = load_topics()   # survives restarts, no RAM-only state
  
 # ── helpers ─────────────────────────────────────────────────────────────────────
  
+async def left_group(update: Update, context: CallbackContext):
+    chat = update.my_chat_member.chat
+    new_status = update.my_chat_member.new_chat_member.status
+    if new_status in ["member", "administrator"] and chat.id != GROUP_ID:
+        await context.bot.leave_chat(chat.id)
+        return
+
 def get_sender_name(user):
     return f"@{user.username}" if user.username else f"{user.first_name} {user.last_name or ''}".strip()
  
@@ -259,6 +267,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("ban", ban_user))
     app.add_handler(CommandHandler("unban", unban_user))
     app.add_handler(CommandHandler("delete", delete_topic))
+    app.add_handler(ChatMemberHandler(left_group, chat_member_types="my_chat_member"))
 
     media_filter = (
         filters.TEXT | filters.PHOTO | filters.VIDEO |
