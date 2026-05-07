@@ -4,5 +4,5 @@ venv/
 .env
 
 topics.json
-banned.csv
+banned.txt
 session_name.session
