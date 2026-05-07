@@ -1,4 +1,6 @@
 .venv/
+venv/
 .env
 topics.json
 banned.csv
+session_name.session

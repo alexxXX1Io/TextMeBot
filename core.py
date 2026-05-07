@@ -65,6 +65,7 @@ async def get_or_create_topic(context, user):
     thread_id = topic.message_thread_id
     user_topics[uid] = thread_id
     save_topics(user_topics)
+    await context.bot.send_message(GROUP_ID, f"{get_sender_name(user)}:", message_thread_id=thread_id)
     return thread_id
  
 async def forward_to_group(context, user, msg, thread_id):
@@ -172,6 +173,39 @@ async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Користувача {user_id} немає в бані.")
  
  
+async def delete_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not update.message.message_thread_id or update.message.chat_id != GROUP_ID:
+        await update.message.reply_text("Виконай команду всередині топіку.")
+        return
+
+    thread_id = update.message.message_thread_id
+
+    # find and remove from json
+    user_id = None
+    for uid, tid in user_topics.items():
+        if tid == thread_id:
+            user_id = uid
+            break
+
+    if not user_id:
+        await update.message.reply_text("Топік не знайдено в базі.")
+        return
+
+    try:
+        await context.bot.delete_forum_topic(
+            chat_id=GROUP_ID,
+            message_thread_id=thread_id
+        )
+        del user_topics[user_id]
+        save_topics(user_topics)
+        # can't reply to a deleted topic so send to general chat
+        await context.bot.send_message(GROUP_ID, f"Топік користувача {user_id} видалено.")
+    except Exception as e:
+        await update.message.reply_text(f"Помилка: {e}")
+
 # ── main handler ────────────────────────────────────────────────────────────────
  
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -211,7 +245,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if DEBUG and is_admin:
             await msg.reply_text("[DEBUG] Повідомлення переслано в групу.")
         else:
-            await msg.reply_text("Повідомлення надіслано.")
+            await update.effective_message.set_reaction(reaction="👌")
     except Exception as e:
         await msg.reply_text(f"Помилка: {e}")
  
@@ -224,7 +258,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ban", ban_user))
     app.add_handler(CommandHandler("unban", unban_user))
- 
+    app.add_handler(CommandHandler("delete", delete_topic))
+
     media_filter = (
         filters.TEXT | filters.PHOTO | filters.VIDEO |
         filters.Document.ALL | filters.VOICE | filters.AUDIO |
